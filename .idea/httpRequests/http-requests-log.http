@@ -1,0 +1,10 @@
+POST http://localhost:8081/api/ai/analysis
+User-Agent: IntelliJ HTTP Client/IntelliJ IDEA 2026.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+content-length: 0
+
+<> 2026-09-10T180255.500.json
+
+###
+

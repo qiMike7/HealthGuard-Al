@@ -1,0 +1,4 @@
+{
+  "status": 500,
+  "message": "Required request body is missing: public com.example.selfhealthcare.dto.AiConsultationResponse com.example.selfhealthcare.controller.AiAnalysisController.analyze(com.example.selfhealthcare.dto.AiConsultationRequest)"
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="dataSourceStorageLocal" created-in="IU-261.22158.277">
+    <data-source name="self_health_care@localhost" uuid="9497099b-7b14-4b1b-95b1-419f5de9e021">
+      <database-info product="" version="" jdbc-version="" driver-name="" driver-version="" dbms="MYSQL" />
+      <user-name>SpringAI</user-name>
+      <schema-mapping />
+    </data-source>
+  </component>
+</project>
