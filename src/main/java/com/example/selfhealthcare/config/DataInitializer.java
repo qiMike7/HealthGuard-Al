@@ -99,17 +99,71 @@ public class DataInitializer implements CommandLineRunner {
             log.info("triage.seed.enabled=false，跳过科室知识库与号源初始化");
             return;
         }
-        if (departmentRepository.count() > 0) {
+        if (departmentRepository.count() == 0) {
+            List<Department> departments = seedDepartments();
+            Hospital tier3Hospital = seedHospital("市第一人民医院", HospitalLevel.TIER3_A, "市中心健康路 1 号", "010-88880001");
+            Hospital communityHospital = seedHospital("城南社区卫生服务中心", HospitalLevel.COMMUNITY, "城南区平安街 22 号", "010-88880022");
+            seedDoctorsAndSlots(departments, List.of(tier3Hospital, communityHospital));
+
+            log.info("初始化完成：科室 {} 个，医院 2 家", departments.size());
+        } else {
             log.info("科室知识库已存在，跳过初始化（幂等）");
-            return;
         }
 
-        List<Department> departments = seedDepartments();
-        Hospital tier3Hospital = seedHospital("市第一人民医院", HospitalLevel.TIER3_A, "市中心健康路 1 号", "010-88880001");
-        Hospital communityHospital = seedHospital("城南社区卫生服务中心", HospitalLevel.COMMUNITY, "城南区平安街 22 号", "010-88880022");
-        seedDoctorsAndSlots(departments, List.of(tier3Hospital, communityHospital));
+        // 无论是否首次播种，都把号源排期滚动到“今天起未来 7 天”，
+        // 避免静态种子因日期写死在首次启动那天而随时间推移全部过期。
+        refreshSlotWindow();
+    }
 
-        log.info("初始化完成：科室 {} 个，医院 2 家", departments.size());
+    // 滚动号源窗口：把每位医生的号源排期整体顺延到“今天起未来 SLOT_DAYS 天”，用更新日期的方式滚动，
+    // 不删除历史行，以免破坏挂号单对号源的外键引用；同一天重复启动则保持幂等（落在窗口内则跳过）。
+    private void refreshSlotWindow() {
+        LocalDate today = LocalDate.now();
+        List<Doctor> doctors = doctorRepository.findAll();
+        if (doctors.isEmpty()) {
+            return;
+        }
+        int rolled = 0;
+        for (Doctor doctor : doctors) {
+            List<RegistrationSlot> slots = registrationSlotRepository
+                    .findByDoctorIdOrderByDateAscPeriodAsc(doctor.getId());
+            if (slots.isEmpty()) {
+                continue;
+            }
+            // 按原日期分组（已按日期升序），同一天的多个时段作为一个整体一起顺延
+            java.util.LinkedHashMap<LocalDate, List<RegistrationSlot>> byDate = new java.util.LinkedHashMap<>();
+            for (RegistrationSlot slot : slots) {
+                byDate.computeIfAbsent(slot.getDate(), d -> new java.util.ArrayList<>()).add(slot);
+            }
+            LocalDate oldest = null;
+            LocalDate newest = null;
+            for (LocalDate d : byDate.keySet()) {
+                if (oldest == null) {
+                    oldest = d;
+                }
+                newest = d;
+            }
+            // 已经完整落在 (today, today+SLOT_DAYS] 窗口内则无需改动
+            if (oldest != null && oldest.isAfter(today) && (newest == null || !newest.isAfter(today.plusDays(SLOT_DAYS)))) {
+                continue;
+            }
+            // 重新锚定：第 i 个日期分组 -> today + 1 + i（分组数量通常等于 SLOT_DAYS）
+            int index = 0;
+            for (List<RegistrationSlot> daySlots : byDate.values()) {
+                LocalDate newDate = today.plusDays(1 + index);
+                for (RegistrationSlot slot : daySlots) {
+                    if (!newDate.equals(slot.getDate())) {
+                        slot.setDate(newDate);
+                        rolled++;
+                    }
+                }
+                index++;
+            }
+            registrationSlotRepository.saveAll(slots);
+        }
+        if (rolled > 0) {
+            log.info("号源滚动窗口完成：顺延 {} 条过期号源到今天起未来 {} 天", rolled, SLOT_DAYS);
+        }
     }
 
     private List<Department> seedDepartments() {

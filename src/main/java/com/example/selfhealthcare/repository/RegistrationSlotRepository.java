@@ -11,4 +11,6 @@ public interface RegistrationSlotRepository extends JpaRepository<RegistrationSl
 
     List<RegistrationSlot> findByDoctorIdInAndDateBetweenAndRemainingSlotsGreaterThanOrderByDateAscPeriodAsc(
             Collection<Long> doctorIds, LocalDate start, LocalDate end, int minRemaining);
+
+    List<RegistrationSlot> findByDoctorIdOrderByDateAscPeriodAsc(Long doctorId);
 }
